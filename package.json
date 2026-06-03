@@ -1,0 +1,21 @@
+{
+  "name": "txt-editor",
+  "pluginType": "ui",
+  "pluginName": "markdown文本编辑器",
+  "description": "使用txt编写markdown语法，支持同步预览",
+  "author": "hyy",
+  "version": "0.1.0",
+  "main": "editor.html",
+  "homePage": "README.md",
+  "logo": "https://pic1.zhimg.com/80/v2-bd54fa5f6b53a0d08df58889511b7656_720w.png",
+  "features": [
+    {
+      "code": "editor",
+      "explain": "markdown文本编辑器",
+      "cmds": [
+        "txt",
+        "文本"
+      ]
+    }
+  ]
+}

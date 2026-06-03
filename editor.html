@@ -1,0 +1,1250 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Markdown 文本编辑器 - 多文件版</title>
+    <link rel="stylesheet" href="editor.css" />
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- JSZip - 用于处理 ZIP 文件 -->
+    <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+    <!-- FileSaver - 用于触发下载 -->
+    <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+  </head>
+  <body>
+    <div class="container">
+      <!-- 标题栏 -->
+      <div class="header">
+        <h1>📝 Markdown 文本编辑器</h1>
+        <div class="header-actions">
+          <span
+            class="current-file-name"
+            id="currentFileName"
+            title="当前编辑的文件"
+            >未命名文件</span
+          >
+          <span
+            class="save-time"
+            id="saveTime"
+            title="最后保存时间"
+          ></span>
+          <button
+            class="syntax-help-btn"
+            id="syntaxHelpBtn"
+            title="查看 Markdown 语法"
+          >
+            ❓ 语法帮助
+          </button>
+          <button class="cache-btn" id="cacheBtn" title="查看全局缓存">
+            💾 全局缓存 <span id="cacheCount">0</span>
+          </button>
+          <button class="file-list-export-btn" id="fileListExportBtn" title="导出文件清单">
+            📋 导出清单
+          </button>
+          <button class="file-list-import-btn" id="fileListImportBtn" title="导入文件清单">
+            📥 导入清单
+          </button>
+        </div>
+      </div>
+
+      <!-- 语法提示弹窗 -->
+      <div class="syntax-popup" id="syntaxPopup">
+        <div class="syntax-popup-header">
+          <span>Markdown 语法</span>
+          <button class="syntax-popup-close" id="syntaxPopupClose">×</button>
+        </div>
+        <div class="syntax-list">
+          <div class="syntax-item">
+            <span class="syntax-label">标题</span>
+            <code class="syntax-code"># 一级标题 ## 二级标题 ### 三级标题</code>
+          </div>
+          <div class="syntax-item">
+            <span class="syntax-label">文本样式</span>
+            <code class="syntax-code">**加粗文本** *斜体文本* ~~删除线~~</code>
+            <span class="syntax-desc">渲染为：<b>加粗</b> <i>斜体</i></span>
+          </div>
+          <div class="syntax-item">
+            <span class="syntax-label">列表</span>
+            <code class="syntax-code"
+              >- 无序列表 - 项目 2 - 项目 3 1. 有序列表 2. 项目 2 3. 项目
+              3</code
+            >
+          </div>
+          <div class="syntax-item">
+            <span class="syntax-label">链接</span>
+            <code class="syntax-code">[链接文本](https://example.com)</code>
+          </div>
+          <div class="syntax-item">
+            <span class="syntax-label">图片</span>
+            <code class="syntax-code"
+              >![图片描述](https://example.com/image.jpg)</code
+            >
+          </div>
+          <div class="syntax-item">
+            <span class="syntax-label">代码</span>
+            <code class="syntax-code"
+              >行内代码：`code` 代码块： \`\`\`javascript function hello() {
+              console.log('Hello'); } \`\`\`</code
+            >
+          </div>
+          <div class="syntax-item">
+            <span class="syntax-label">引用</span>
+            <code class="syntax-code">> 这是一条引用 > 引用可以包含多行</code>
+          </div>
+          <div class="syntax-item">
+            <span class="syntax-label">分割线</span>
+            <code class="syntax-code">---</code>
+            <span class="syntax-desc">也可以用 *** 或 ___</span>
+          </div>
+          <div class="syntax-item">
+            <span class="syntax-label">表格</span>
+            <code class="syntax-code"
+              >| 列1 | 列2 | |------|------| | 值1 | 值2 |</code
+            >
+          </div>
+        </div>
+      </div>
+
+      <!-- 全局图片缓存管理弹窗 -->
+      <div class="cache-popup" id="cachePopup">
+        <div class="cache-popup-header">
+          <span>💾 全局图片缓存管理</span>
+          <button class="syntax-popup-close" id="cachePopupClose">×</button>
+        </div>
+        <div class="cache-info">
+          <div class="cache-stat">
+            <span>已缓存图片：<strong id="cacheImageCount">0</strong> 张</span>
+            <span>缓存大小：<strong id="cacheSizeDisplay">0 KB</strong></span>
+          </div>
+        </div>
+        <div class="cache-list" id="cacheList">
+          <div class="cache-empty">暂无缓存图片</div>
+        </div>
+        <div class="cache-footer">
+          <button class="modal-btn secondary" id="cacheClosBtn">关闭</button>
+          <button class="modal-btn info" id="cleanupBtn">
+            🧹 清理孤立缓存
+          </button>
+          <button class="modal-btn danger" id="clearCacheBtn">
+            🗑️ 一键释放所有缓存
+          </button>
+        </div>
+      </div>
+
+      <!-- 文件级缓存管理弹窗 -->
+      <div class="cache-popup" id="fileCachePopup">
+        <div class="cache-popup-header">
+          <span>📁 当前文件的缓存管理</span>
+          <button class="syntax-popup-close" id="fileCachePopupClose">×</button>
+        </div>
+        <div class="cache-info">
+          <div class="cache-stat">
+            <span
+              >该文件的缓存图片：<strong id="fileCacheImageCount">0</strong>
+              张</span
+            >
+            <span
+              >占用大小：<strong id="fileCacheSizeDisplay">0 KB</strong></span
+            >
+          </div>
+        </div>
+        <div class="cache-list" id="fileCacheList">
+          <div class="cache-empty">暂无缓存图片</div>
+        </div>
+        <div class="cache-footer">
+          <button class="modal-btn secondary" id="fileCacheCloseBtn">
+            关闭
+          </button>
+          <button class="modal-btn danger" id="clearFileCacheBtn">
+            🗑️ 清空当前文件的缓存
+          </button>
+        </div>
+      </div>
+
+      <!-- 文件管理侧边栏 -->
+      <div class="main-content">
+        <div class="files-panel">
+          <div class="files-header">
+            <h3>📂 文件管理</h3>
+            <button class="file-action-btn" id="newFileBtn" title="创建新文件">
+              ➕
+            </button>
+          </div>
+          <div class="files-list" id="filesList">
+            <!-- 文件列表会动态生成 -->
+          </div>
+          <input type="file" id="importSingleFileInput" accept=".json" hidden />
+        </div>
+
+        <!-- 编辑器容器 -->
+        <div class="editor-wrapper">
+          <!-- 工具栏 -->
+          <div class="toolbar">
+            <button class="toolbar-btn" id="insertImageBtn" title="插入图片">
+              <span>🖼️</span>
+              <span>插入图片</span>
+            </button>
+            <button
+              class="toolbar-btn file-cache-btn"
+              id="fileCacheBtn"
+              title="查看当前文件的缓存"
+            >
+              <span>📁</span>
+              <span>文件缓存 <span id="fileCacheCount">0</span></span>
+            </button>
+            <div class="toolbar-separator"></div>
+            <button
+              class="toolbar-btn file-btn"
+              id="renameFileBtn"
+              title="重命名当前文件"
+            >
+              <span>✏️</span>
+              <span>重命名</span>
+            </button>
+            <button
+              class="toolbar-btn file-btn danger"
+              id="deleteFileBtn"
+              title="删除当前文件"
+            >
+              <span>🗑️</span>
+              <span>删除</span>
+            </button>
+            <div class="toolbar-separator"></div>
+            <span style="font-size: 12px; color: #999"
+              >提示：可以直接粘贴图片或使用工具栏插入</span
+            >
+          </div>
+
+          <!-- 编辑器主体 -->
+          <div class="editor-container">
+            <!-- 编辑区域 -->
+            <div class="editor-section">
+              <div class="editor-header">输入 Markdown</div>
+              <textarea
+                class="editor-textarea"
+                id="editor"
+                placeholder="在这里输入你的 Markdown 文本...
+
+支持功能：
+• 直接粘贴本地图片（自动存储到缓存）
+• 输入在线图片链接
+• 使用工具栏插入图片"
+              ></textarea>
+              <!-- 隐藏的文件输入 -->
+              <input
+                type="file"
+                id="fileInput"
+                style="display: none"
+                accept="image/*"
+              />
+            </div>
+
+            <!-- 分割条和展开/收起按钮 -->
+            <div class="divider">
+              <button class="divider-button" id="toggleBtn" title="隐藏预览区">
+                ◀
+              </button>
+            </div>
+
+            <!-- 预览区域 -->
+            <div class="preview-section">
+              <div class="preview-header">预览效果</div>
+              <div class="preview-content" id="preview"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右键菜单 - 文件操作 -->
+    <div class="context-menu" id="fileContextMenu">
+      <div class="context-menu-item" id="exportJsonBtn">
+        📥 导出为 JSON
+      </div>
+      <div class="context-menu-item" id="exportZipBtn">
+        📦 导出为 ZIP
+      </div>
+      <div class="context-menu-separator"></div>
+      <div class="context-menu-item" id="importFileBtn">
+        📤 导入文件
+      </div>
+    </div>
+
+    <!-- 插入图片对话框 -->
+    <div class="modal" id="imageModal">
+      <div class="modal-content">
+        <div class="modal-header">插入图片</div>
+
+        <!-- Tab 选择 -->
+        <div class="image-tabs">
+          <button class="image-tab-btn active" data-tab="link">
+            🔗 在线链接
+          </button>
+          <button class="image-tab-btn" data-tab="upload">📁 本地上传</button>
+        </div>
+
+        <!-- 在线链接标签页 -->
+        <div class="image-tab-content active" id="linkTab">
+          <div class="form-group">
+            <label class="form-label">图片 URL</label>
+            <input
+              type="text"
+              class="form-input"
+              id="imageUrl"
+              placeholder="输入图片链接，如 https://example.com/image.jpg"
+            />
+          </div>
+          <div class="form-group">
+            <label class="form-label">图片描述（可选）</label>
+            <input
+              type="text"
+              class="form-input"
+              id="imageAlt"
+              placeholder="输入图片的描述文本"
+            />
+          </div>
+        </div>
+
+        <!-- 本地上传标签页 -->
+        <div class="image-tab-content" id="uploadTab">
+          <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📁</div>
+            <div class="upload-text">
+              <p class="upload-title">点击选择文件或拖拽图片到此</p>
+              <p class="upload-desc">支持 JPG, PNG, GIF, WebP 等格式</p>
+            </div>
+          </div>
+          <input
+            type="file"
+            id="uploadInput"
+            accept="image/*"
+            style="display: none"
+          />
+          <div class="form-group" style="margin-top: 12px">
+            <label class="form-label">图片描述（可选）</label>
+            <input
+              type="text"
+              class="form-input"
+              id="uploadImageAlt"
+              placeholder="输入图片的描述文本"
+            />
+          </div>
+          <div id="uploadPreview" class="upload-preview" style="display: none">
+            <img id="uploadPreviewImg" src="" alt="预览" />
+            <span id="uploadPreviewName"></span>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="modal-btn secondary" id="cancelBtn">取消</button>
+          <button class="modal-btn primary" id="confirmBtn">插入</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 重命名文件对话框 -->
+    <div class="modal" id="renameModal">
+      <div class="modal-content">
+        <div class="modal-header">重命名文件</div>
+        <div class="form-group">
+          <label class="form-label">文件名</label>
+          <input
+            type="text"
+            class="form-input"
+            id="renameInput"
+            placeholder="输入新的文件名"
+          />
+        </div>
+        <div class="modal-footer">
+          <button class="modal-btn secondary" id="renameCancelBtn">取消</button>
+          <button class="modal-btn primary" id="renameConfirmBtn">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 上传进度提示 -->
+    <div class="toast" id="toast"></div>
+
+
+    <!-- 应用脚本加载 -->
+    <!-- 阶段1：基础工具和常量 -->
+    <script src="js/constants.js"></script>
+    <script src="js/utils/helpers.js"></script>
+    <script src="js/utils/toast.js"></script>
+
+    <!-- 阶段2：核心数据管理 -->
+    <script src="js/core/FileManager.js"></script>
+    <script src="js/core/ImageCacheManager.js"></script>
+
+    <!-- 阶段3：功能扩展 -->
+    <script src="js/resources/ResourceManager.js"></script>
+    <script src="js/export/DataExporter.js"></script>
+    <script src="js/import/DataImporter.js"></script>
+
+    <!-- 阶段4：UI组件 -->
+    <script src="js/ui/FileListImportModal.js"></script>
+
+    <!-- 阶段5：应用初始化 -->
+    <script src="js/app.js"></script>
+
+    <!-- 主程序脚本 -->
+    <script>
+      // DOM 元素
+      const editor = document.getElementById("editor");
+      const currentFileName = document.getElementById("currentFileName");
+      const filesList = document.getElementById("filesList");
+      const preview = document.getElementById("preview");
+
+      // 导出和导入实例
+      let exporter = null;
+      let importer = null;
+
+      // 格式化时间为 "年月日 时分秒" 格式
+      function formatSaveTime() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+      }
+
+      // 更新保存时间显示
+      function updateSaveTimeDisplay() {
+        const saveTimeEl = document.getElementById('saveTime');
+        if (saveTimeEl) {
+          saveTimeEl.textContent = `• 保存于: ${formatSaveTime()}`;
+        }
+      }
+
+      // 刷新预览
+      async function updatePreview() {
+        const content = editor.value || "";
+        let html = marked.parse(content);
+
+        // 替换缓存中的图片ID为实际的dataUrl
+        const imgRegex = /src="(img_[^"]+)"/g;
+        const promises = [];
+        let match;
+        let imgCount = 0;
+
+        while ((match = imgRegex.exec(html)) !== null) {
+          const imgId = match[1];
+          imgCount++;
+          promises.push(
+            (async () => {
+              try {
+                const dataUrl = await imageCache.getImage(imgId);
+                if (dataUrl) {
+                  html = html.replace(`src="${imgId}"`, `src="${dataUrl}"`);
+                } else {
+                  console.warn(`图片 ${imgId} 未找到在缓存中`);
+                }
+              } catch (error) {
+                console.error(`加载图片 ${imgId} 失败:`, error);
+              }
+            })()
+          );
+        }
+
+        // 如果有图片，等待所有图片加载完成
+        if (promises.length > 0) {
+          try {
+            await Promise.all(promises);
+            console.log(`✓ 预览已更新，加载了 ${imgCount} 张图片`);
+          } catch (error) {
+            console.error("图片加载过程中出错:", error);
+          }
+        }
+
+        preview.innerHTML = html;
+      }
+
+      // 刷新文件列表
+      async function refreshFilesList() {
+        const files = await fileManager.getAllFiles();
+        filesList.innerHTML = "";
+        if (files.length === 0) {
+          filesList.innerHTML = '<div class="empty-list">暂无文件</div>';
+          return;
+        }
+        files.forEach(file => {
+          const item = document.createElement("div");
+          item.className = "file-item";
+          item.dataset.fileId = file.id;
+          if (file.id === fileManager.currentFileId) {
+            item.classList.add("active");
+          }
+          item.innerHTML = `<span>${file.name}</span><span>${new Date(file.updateTime).toLocaleDateString()}</span>`;
+          item.addEventListener("click", () => selectFile(file.id));
+          // 右键菜单事件
+          item.addEventListener("contextmenu", (e) => {
+            e.preventDefault();
+            showFileContextMenu(e, file.id);
+          });
+          filesList.appendChild(item);
+        });
+      }
+
+      // 选择文件
+      async function selectFile(fileId) {
+        const file = await fileManager.getFile(fileId);
+        if (file) {
+          fileManager.currentFileId = fileId;
+          editor.value = file.content;
+          currentFileName.textContent = file.name;
+          await updatePreview();
+          await refreshFilesList();
+        }
+      }
+
+      // 显示文件右键菜单
+      function showFileContextMenu(e, fileId) {
+        const menu = document.getElementById("fileContextMenu");
+        menu.classList.add("show");
+        menu.style.left = e.clientX + "px";
+        menu.style.top = e.clientY + "px";
+
+        // 保存当前文件ID，供菜单项使用
+        menu.dataset.currentFileId = fileId;
+      }
+
+      // 隐藏右键菜单
+      function hideFileContextMenu() {
+        const menu = document.getElementById("fileContextMenu");
+        menu.classList.remove("show");
+      }
+
+      // 菜单项 - 导出为JSON
+      document.getElementById("exportJsonBtn").addEventListener("click", async () => {
+        const menu = document.getElementById("fileContextMenu");
+        const fileId = menu.dataset.currentFileId;
+        if (!fileId) return;
+
+        try {
+          if (!exporter) {
+            showToast("导出器未初始化", "error");
+            return;
+          }
+          await exporter.exportSingleFileAsJson(fileId, true);
+        } catch (error) {
+          showToast("导出失败: " + error.message, "error");
+        }
+        hideFileContextMenu();
+      });
+
+      // 菜单项 - 导出为ZIP
+      document.getElementById("exportZipBtn").addEventListener("click", async () => {
+        const menu = document.getElementById("fileContextMenu");
+        const fileId = menu.dataset.currentFileId;
+        if (!fileId) return;
+
+        try {
+          if (!exporter) {
+            showToast("导出器未初始化", "error");
+            return;
+          }
+          await exporter.exportSingleFileAsZip(fileId, true);
+        } catch (error) {
+          showToast("导出失败: " + error.message, "error");
+        }
+        hideFileContextMenu();
+      });
+
+      // 菜单项 - 导入文件
+      document.getElementById("importFileBtn").addEventListener("click", () => {
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.accept = ".json,.zip";
+        fileInput.onchange = async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          try {
+            if (!importer) {
+              showToast("导入器未初始化", "error");
+              return;
+            }
+
+            const result = await importer.importSingleFile(file, 'merge', true);
+
+            if (result.success) {
+              await refreshFilesList();
+              if (result.fileId) {
+                await selectFile(result.fileId);
+              }
+              const msg = `导入成功！文件：${result.fileName}, 资源：${result.resourceCount}个`;
+              showToast(msg, "success");
+            } else {
+              const errors = result.errors?.join("; ") || "导入失败";
+              showToast("导入失败: " + errors, "error");
+            }
+          } catch (error) {
+            showToast("导入失败: " + error.message, "error");
+          }
+        };
+        fileInput.click();
+        hideFileContextMenu();
+      });
+
+      // 全局点击关闭菜单和弹窗
+      document.addEventListener("click", (e) => {
+        hideFileContextMenu();
+
+        // 关闭语法帮助弹窗 - 仅在点击弹窗外部时关闭
+        const syntaxPopup = document.getElementById("syntaxPopup");
+        const syntaxHelpBtn = document.getElementById("syntaxHelpBtn");
+        if (syntaxPopup && syntaxPopup.classList.contains("show")) {
+          if (!syntaxPopup.contains(e.target) && !syntaxHelpBtn.contains(e.target)) {
+            syntaxPopup.classList.remove("show");
+          }
+        }
+
+        // 关闭全局缓存弹窗 - 仅在点击弹窗外部时关闭
+        const cachePopup = document.getElementById("cachePopup");
+        const cacheBtn = document.getElementById("cacheBtn");
+        if (cachePopup && cachePopup.classList.contains("show")) {
+          if (!cachePopup.contains(e.target) && !cacheBtn.contains(e.target)) {
+            cachePopup.classList.remove("show");
+          }
+        }
+
+        // 关闭文件缓存弹窗 - 仅在点击弹窗外部时关闭
+        const fileCachePopup = document.getElementById("fileCachePopup");
+        const fileCacheBtn = document.getElementById("fileCacheBtn");
+        if (fileCachePopup && fileCachePopup.classList.contains("show")) {
+          if (!fileCachePopup.contains(e.target) && !fileCacheBtn.contains(e.target)) {
+            fileCachePopup.classList.remove("show");
+          }
+        }
+
+        // 关闭模态框 - 仅在点击背景遮罩时关闭
+        const imageModal = document.getElementById("imageModal");
+        if (imageModal && imageModal.classList.contains("show")) {
+          if (e.target === imageModal) {
+            imageModal.classList.remove("show");
+          }
+        }
+
+        const renameModal = document.getElementById("renameModal");
+        if (renameModal && renameModal.classList.contains("show")) {
+          if (e.target === renameModal) {
+            renameModal.classList.remove("show");
+          }
+        }
+      });
+
+      // 更新缓存UI
+      async function updateGlobalCacheUI() {
+        try {
+          const images = await imageCache.getAllImages();
+          const imageCount = images.length;
+          const cacheSize = await imageCache.getCacheSize();
+
+          // 更新统计信息
+          document.getElementById("cacheCount").textContent = imageCount;
+          document.getElementById("cacheImageCount").textContent = imageCount;
+          document.getElementById("cacheSizeDisplay").textContent = imageCache.formatSize(cacheSize);
+
+          // 更新缓存列表
+          const cacheList = document.getElementById("cacheList");
+          if (cacheList) {
+            if (images.length === 0) {
+              cacheList.innerHTML = '<div class="cache-empty">暂无缓存图片</div>';
+            } else {
+              cacheList.innerHTML = '';
+              images.forEach((img, index) => {
+                const item = document.createElement("div");
+                item.className = "cache-item";
+                item.innerHTML = `
+                  <div class="cache-item-thumbnail">
+                    <img src="${img.dataUrl}" alt="${img.fileName}" />
+                  </div>
+                  <div class="cache-item-info">
+                    <div class="cache-item-name">${img.fileName}</div>
+                    <div class="cache-item-meta">
+                      大小: ${imageCache.formatSize(img.size)} |
+                      ID: ${img.id.substring(0, 20)}...
+                    </div>
+                  </div>
+                `;
+                cacheList.appendChild(item);
+              });
+            }
+          }
+        } catch (error) {
+          console.error("更新全局缓存UI失败:", error);
+        }
+      }
+
+      async function updateFileCacheUI() {
+        try {
+          const images = await imageCache.getFileImages(fileManager.currentFileId);
+          const cacheSize = await imageCache.getFileCacheSize(fileManager.currentFileId);
+
+          // 更新统计信息
+          document.getElementById("fileCacheCount").textContent = images.length;
+          document.getElementById("fileCacheSizeDisplay").textContent = imageCache.formatSize(cacheSize);
+
+          // 更新缓存列表
+          const fileCacheList = document.getElementById("fileCacheList");
+          if (fileCacheList) {
+            if (images.length === 0) {
+              fileCacheList.innerHTML = '<div class="cache-empty">暂无缓存图片</div>';
+            } else {
+              fileCacheList.innerHTML = '';
+              images.forEach((img, index) => {
+                const item = document.createElement("div");
+                item.className = "cache-item";
+                item.innerHTML = `
+                  <div class="cache-item-thumbnail">
+                    <img src="${img.dataUrl}" alt="${img.fileName}" />
+                  </div>
+                  <div class="cache-item-info">
+                    <div class="cache-item-name">${img.fileName}</div>
+                    <div class="cache-item-meta">
+                      大小: ${imageCache.formatSize(img.size)} |
+                      ID: ${img.id.substring(0, 20)}...
+                    </div>
+                  </div>
+                `;
+                fileCacheList.appendChild(item);
+              });
+            }
+          }
+        } catch (error) {
+          console.error("更新文件缓存UI失败:", error);
+        }
+      }
+
+      // 绑定所有事件监听
+      function bindAllEvents() {
+        // Ctrl+S 快捷键保存
+        document.addEventListener("keydown", (e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+            e.preventDefault(); // 阻止浏览器默认保存行为
+            // 触发保存
+            fileManager
+              .saveFile(fileManager.currentFileId, editor.value)
+              .then(() => {
+                updateSaveTimeDisplay();
+                showToast("文件已保存", "success");
+              })
+              .catch((error) => {
+                showToast("保存失败: " + error.message, "error");
+              });
+          }
+        });
+
+        // 获取按钮元素
+        const newFileBtn = document.getElementById("newFileBtn");
+        const renameFileBtn = document.getElementById("renameFileBtn");
+        const deleteFileBtn = document.getElementById("deleteFileBtn");
+        const insertImageBtn = document.getElementById("insertImageBtn");
+        const renameModal = document.getElementById("renameModal");
+        const renameInput = document.getElementById("renameInput");
+        const renameCancelBtn = document.getElementById("renameCancelBtn");
+        const renameConfirmBtn = document.getElementById("renameConfirmBtn");
+        const imageModal = document.getElementById("imageModal");
+        const cancelBtn = document.getElementById("cancelBtn");
+        const confirmBtn = document.getElementById("confirmBtn");
+        const imageUrl = document.getElementById("imageUrl");
+        const imageAlt = document.getElementById("imageAlt");
+        const syntaxHelpBtn = document.getElementById("syntaxHelpBtn");
+        const syntaxPopup = document.getElementById("syntaxPopup");
+        const syntaxPopupClose = document.getElementById("syntaxPopupClose");
+        const cacheBtn = document.getElementById("cacheBtn");
+        const cachePopup = document.getElementById("cachePopup");
+        const cachePopupClose = document.getElementById("cachePopupClose");
+        const cacheClosBtn = document.getElementById("cacheClosBtn");
+        const clearCacheBtn = document.getElementById("clearCacheBtn");
+        const cleanupBtn = document.getElementById("cleanupBtn");
+        const fileCacheBtn = document.getElementById("fileCacheBtn");
+        const fileCachePopup = document.getElementById("fileCachePopup");
+        const fileCachePopupClose = document.getElementById("fileCachePopupClose");
+        const fileCacheCloseBtn = document.getElementById("fileCacheCloseBtn");
+        const clearFileCacheBtn = document.getElementById("clearFileCacheBtn");
+        const uploadArea = document.getElementById("uploadArea");
+        const uploadInput = document.getElementById("uploadInput");
+        const uploadPreview = document.getElementById("uploadPreview");
+        const uploadPreviewImg = document.getElementById("uploadPreviewImg");
+        const uploadPreviewName = document.getElementById("uploadPreviewName");
+        const uploadImageAlt = document.getElementById("uploadImageAlt");
+        const imageImageTabs = document.querySelectorAll(".image-tab-btn");
+        const linkTab = document.getElementById("linkTab");
+        const uploadTab = document.getElementById("uploadTab");
+        const fileListExportBtn = document.getElementById("fileListExportBtn");
+        const fileListImportBtn = document.getElementById("fileListImportBtn");
+        const toggleBtn = document.getElementById("toggleBtn");
+
+        // 新建文件
+        if (newFileBtn) {
+          newFileBtn.addEventListener("click", async () => {
+            const name = prompt("输入新文件的名称:");
+            if (!name) return;
+            try {
+              const file = await fileManager.createFile(name);
+              await refreshFilesList();
+              await selectFile(file.id);
+              showToast("文件创建成功", "success");
+            } catch (error) {
+              showToast("创建失败: " + error.message, "error");
+            }
+          });
+        }
+
+        // 重命名文件
+        if (renameFileBtn) {
+          renameFileBtn.addEventListener("click", () => {
+            renameInput.value = currentFileName.textContent;
+            renameModal.classList.add("show");
+          });
+        }
+
+        if (renameConfirmBtn) {
+          renameConfirmBtn.addEventListener("click", async () => {
+            try {
+              const newName = renameInput.value.trim();
+              if (!newName) {
+                showToast("文件名不能为空", "error");
+                return;
+              }
+              await fileManager.renameFile(fileManager.currentFileId, newName);
+              currentFileName.textContent = newName;
+              await refreshFilesList();
+              renameModal.classList.remove("show");
+              showToast("重命名成功", "success");
+            } catch (error) {
+              showToast("重命名失败: " + error.message, "error");
+            }
+          });
+        }
+
+        if (renameCancelBtn) {
+          renameCancelBtn.addEventListener("click", () => {
+            renameModal.classList.remove("show");
+          });
+        }
+
+        // 删除文件
+        if (deleteFileBtn) {
+          deleteFileBtn.addEventListener("click", async () => {
+            if (!confirm("确定要删除此文件吗？此操作不可撤销。")) return;
+            try {
+              const currentFileId = fileManager.currentFileId;
+
+              // 删除文件
+              await fileManager.deleteFile(currentFileId);
+              await refreshFilesList();
+              showToast("文件已删除", "success");
+            } catch (error) {
+              showToast("删除失败: " + error.message, "error");
+            }
+          });
+        }
+
+        // 编辑器自动保存
+        let lastAutoSaveTime = 0;
+        editor.addEventListener("input", async () => {
+          try {
+            await fileManager.saveFile(fileManager.currentFileId, editor.value);
+            await updatePreview();
+
+            // 去重提示：2秒内只显示一次保存提示
+            const now = Date.now();
+            if (now - lastAutoSaveTime > 2000) {
+              updateSaveTimeDisplay();
+              showToast("文件已自动保存", "success");
+              lastAutoSaveTime = now;
+            } else {
+              // 即使不显示提示，也要更新时间
+              updateSaveTimeDisplay();
+            }
+          } catch (error) {
+            console.error("保存失败:", error);
+          }
+        });
+
+        // 预览分割线
+        let isDragging = false;
+        const divider = document.querySelector(".divider");
+        if (divider) {
+          divider.addEventListener("mousedown", () => {
+            isDragging = true;
+          });
+          document.addEventListener("mouseup", () => {
+            isDragging = false;
+          });
+          document.addEventListener("mousemove", (e) => {
+            if (!isDragging) return;
+            const editorWrapper = document.querySelector(".editor-wrapper");
+            const rect = editorWrapper.getBoundingClientRect();
+            const newWidth = e.clientX - rect.left;
+            const maxWidth = rect.width - 100;
+            if (newWidth > 100 && newWidth < maxWidth) {
+              const editorSection = document.querySelector(".editor-section");
+              editorSection.style.flex = newWidth + "px 0 0";
+            }
+          });
+        }
+
+        // 预览隐藏/显示
+        if (toggleBtn) {
+          toggleBtn.addEventListener("click", () => {
+            const previewSection = document.querySelector(".preview-section");
+            const isVisible = !previewSection.classList.contains("hidden");
+            if (isVisible) {
+              previewSection.classList.add("hidden");
+              divider.classList.add("hidden");
+              toggleBtn.textContent = "▶";
+            } else {
+              previewSection.classList.remove("hidden");
+              divider.classList.remove("hidden");
+              toggleBtn.textContent = "◀";
+            }
+          });
+        }
+
+        // 语法帮助
+        if (syntaxHelpBtn) {
+          syntaxHelpBtn.addEventListener("click", () => {
+            syntaxPopup.classList.toggle("show");
+          });
+        }
+        if (syntaxPopupClose) {
+          syntaxPopupClose.addEventListener("click", () => {
+            syntaxPopup.classList.remove("show");
+          });
+        }
+
+        // 图片缓存管理
+        if (cacheBtn) {
+          cacheBtn.addEventListener("click", async () => {
+            if (cachePopup.classList.contains("show")) {
+              cachePopup.classList.remove("show");
+            } else {
+              // 打开弹窗前加载缓存列表
+              await updateGlobalCacheUI();
+              cachePopup.classList.add("show");
+            }
+          });
+        }
+        if (cachePopupClose) {
+          cachePopupClose.addEventListener("click", () => {
+            cachePopup.classList.remove("show");
+          });
+        }
+        if (cacheClosBtn) {
+          cacheClosBtn.addEventListener("click", () => {
+            cachePopup.classList.remove("show");
+          });
+        }
+        if (clearCacheBtn) {
+          clearCacheBtn.addEventListener("click", async () => {
+            if (!confirm("确定要清空所有缓存吗？")) return;
+            try {
+              await imageCache.clearCache();
+              await updateGlobalCacheUI();
+              showToast("缓存已清空", "success");
+            } catch (error) {
+              showToast("清空失败: " + error.message, "error");
+            }
+          });
+        }
+        if (cleanupBtn) {
+          cleanupBtn.addEventListener("click", async () => {
+            try {
+              const count = await imageCache.cleanupUnusedCache();
+              await updateGlobalCacheUI();
+              showToast(`已清理 ${count} 个孤立缓存`, "success");
+            } catch (error) {
+              showToast("清理失败: " + error.message, "error");
+            }
+          });
+        }
+
+        // 文件缓存
+        if (fileCacheBtn) {
+          fileCacheBtn.addEventListener("click", async () => {
+            if (fileCachePopup.classList.contains("show")) {
+              fileCachePopup.classList.remove("show");
+            } else {
+              // 打开弹窗前加载缓存列表
+              await updateFileCacheUI();
+              fileCachePopup.classList.add("show");
+            }
+          });
+        }
+        if (fileCachePopupClose) {
+          fileCachePopupClose.addEventListener("click", () => {
+            fileCachePopup.classList.remove("show");
+          });
+        }
+        if (fileCacheCloseBtn) {
+          fileCacheCloseBtn.addEventListener("click", () => {
+            fileCachePopup.classList.remove("show");
+          });
+        }
+        if (clearFileCacheBtn) {
+          clearFileCacheBtn.addEventListener("click", async () => {
+            if (!confirm("确定要清空当前文件的缓存吗？")) return;
+            try {
+              const count = await imageCache.clearFileCache(fileManager.currentFileId);
+              await updateFileCacheUI();
+              showToast(`已清空 ${count} 个缓存图片`, "success");
+            } catch (error) {
+              showToast("清空失败: " + error.message, "error");
+            }
+          });
+        }
+
+        // 插入图片对话框
+        if (insertImageBtn) {
+          insertImageBtn.addEventListener("click", () => {
+            imageModal.classList.add("show");
+          });
+        }
+
+        if (cancelBtn) {
+          cancelBtn.addEventListener("click", () => {
+            imageModal.classList.remove("show");
+            imageUrl.value = "";
+            imageAlt.value = "";
+            if (uploadImageAlt) uploadImageAlt.value = "";
+            if (uploadPreview) uploadPreview.style.display = "none";
+          });
+        }
+
+        if (confirmBtn) {
+          confirmBtn.addEventListener("click", async () => {
+            const activeTab = document.querySelector(".image-tab-content.active");
+            let imageData = null;
+
+            if (activeTab === linkTab) {
+              if (!imageUrl.value) {
+                showToast("请输入图片链接", "error");
+                return;
+              }
+              imageData = {
+                url: imageUrl.value,
+                alt: imageAlt.value || "图片",
+              };
+            } else if (activeTab === uploadTab) {
+              if (!uploadPreviewImg.src) {
+                showToast("请先选择图片", "error");
+                return;
+              }
+              imageData = {
+                url: uploadPreviewImg.src,
+                alt: uploadImageAlt.value || "图片",
+              };
+            }
+
+            if (imageData) {
+              const markdown = `![${imageData.alt}](${imageData.url})`;
+              const { selectionStart, selectionEnd } = editor;
+              editor.value =
+                editor.value.substring(0, selectionStart) +
+                markdown +
+                editor.value.substring(selectionEnd);
+              await fileManager.saveFile(fileManager.currentFileId, editor.value);
+              await updatePreview();
+              imageModal.classList.remove("show");
+              showToast("图片已插入", "success");
+            }
+          });
+        }
+
+        // Tab 切换
+        imageImageTabs.forEach((tab) => {
+          tab.addEventListener("click", () => {
+            imageImageTabs.forEach((t) => t.classList.remove("active"));
+            tab.classList.add("active");
+
+            const tabName = tab.dataset.tab;
+            document.querySelectorAll(".image-tab-content").forEach((c) => {
+              c.classList.remove("active");
+            });
+            if (tabName === "link") {
+              linkTab.classList.add("active");
+            } else if (tabName === "upload") {
+              uploadTab.classList.add("active");
+            }
+          });
+        });
+
+        // 上传图片
+        if (uploadArea) {
+          uploadArea.addEventListener("click", () => {
+            uploadInput.click();
+          });
+
+          uploadArea.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            uploadArea.classList.add("dragover");
+          });
+
+          uploadArea.addEventListener("dragleave", () => {
+            uploadArea.classList.remove("dragover");
+          });
+
+          uploadArea.addEventListener("drop", (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove("dragover");
+            handleFileUpload(e.dataTransfer.files[0]);
+          });
+        }
+
+        if (uploadInput) {
+          uploadInput.addEventListener("change", (e) => {
+            handleFileUpload(e.target.files[0]);
+          });
+        }
+
+        function handleFileUpload(file) {
+          if (!file || !file.type.startsWith("image/")) {
+            showToast("请选择图片文件", "error");
+            return;
+          }
+
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            uploadPreviewImg.src = e.target.result;
+            uploadPreviewName.textContent = file.name;
+            uploadPreview.style.display = "flex";
+          };
+          reader.readAsDataURL(file);
+        }
+
+        // 粘贴图片
+        editor.addEventListener("paste", async (e) => {
+          const items = e.clipboardData?.items || [];
+          for (const item of items) {
+            if (item.type.startsWith("image/")) {
+              const file = item.getAsFile();
+              const reader = new FileReader();
+              reader.onload = async (event) => {
+                try {
+                  const imgId = await imageCache.addImage(
+                    file,
+                    event.target.result,
+                    fileManager.currentFileId
+                  );
+                  const markdown = `![${file.name}](${imgId})`;
+                  const { selectionStart } = editor;
+                  editor.value =
+                    editor.value.substring(0, selectionStart) +
+                    markdown +
+                    editor.value.substring(selectionStart);
+                  await fileManager.saveFile(fileManager.currentFileId, editor.value);
+                  await updatePreview();
+                  showToast("图片已插入并缓存", "success");
+                } catch (error) {
+                  showToast("图片处理失败: " + error.message, "error");
+                }
+              };
+              reader.readAsDataURL(file);
+            }
+          }
+        });
+
+        // 文件列表导出
+        if (fileListExportBtn) {
+          fileListExportBtn.addEventListener("click", async () => {
+            try {
+              if (!exporter) {
+                showToast("导出器未初始化", "error");
+                return;
+              }
+              // 调用新的全项目导出功能（弹出文件选择对话框）
+              await exporter.exportSelectedFilesWithModal();
+            } catch (error) {
+              console.error("导出失败:", error);
+              showToast("导出失败: " + error.message, "error");
+            }
+          });
+        }
+
+        // 文件列表导入
+        if (fileListImportBtn) {
+          fileListImportBtn.addEventListener("click", () => {
+            const fileInput = document.createElement("input");
+            fileInput.type = "file";
+            fileInput.accept = ".json,.zip";
+            fileInput.onchange = async (e) => {
+              const file = e.target.files[0];
+              if (!file) return;
+
+              try {
+                if (!importer) {
+                  showToast("导入器未初始化", "error");
+                  return;
+                }
+
+                // 调用新的全量覆盖导入功能
+                const result = await importer.importFullProjectWithConfirm(file);
+
+                if (result.success) {
+                  // 导入成功，刷新文件列表
+                  await refreshFilesList();
+                  // 加载第一个文件
+                  const files = await fileManager.getAllFiles();
+                  if (files.length > 0) {
+                    fileManager.currentFileId = files[0].id;
+                    const fileContent = await fileManager.getFile(files[0].id);
+                    editor.value = fileContent.content;
+                    currentFileName.textContent = fileContent.name;
+                  }
+                }
+              } catch (error) {
+                console.error("处理文件失败:", error);
+                showToast("处理文件失败: " + error.message, "error");
+              }
+            };
+            fileInput.click();
+          });
+        }
+      }
+
+      // 初始化
+      (async function main() {
+        try {
+          exporter = new DataExporter();
+          importer = new DataImporter();
+
+          await fileManager.initDB();
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+          const files = await fileManager.getAllFiles();
+          if (files.length === 0) {
+            const file = await fileManager.createFile("我的第一个文档");
+            fileManager.currentFileId = file.id;
+          } else {
+            fileManager.currentFileId = files[0].id;
+            const file = await fileManager.getFile(files[0].id);
+            editor.value = file.content;
+          }
+
+          const currentFile = await fileManager.getFile(fileManager.currentFileId);
+          currentFileName.textContent = currentFile.name;
+
+          await refreshFilesList();
+          await updateGlobalCacheUI();
+          await updateFileCacheUI();
+          await updatePreview();
+          updateSaveTimeDisplay();
+
+          // 绑定所有事件监听
+          bindAllEvents();
+
+          console.log("✓ 应用初始化完成");
+        } catch (error) {
+          console.error("初始化失败:", error);
+          showToast("初始化失败", "error");
+        }
+      })();
+    </script>
+  </body>
+</html>
